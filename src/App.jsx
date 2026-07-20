@@ -3,7 +3,7 @@ import { ChevronDown, Building2 } from "lucide-react";
 import Calendario from "./components/calendario/Calendario";
 import TableroKanban from "./components/kanban/TableroKanban";
 import HistorialMovimientos from "./components/historial/HistorialMovimiento";
-import { supabase } from "./lib/SupabaseClient";
+import { supabase } from "./lib/supabaseClient";
 import { COLUMNAS, REGEX_FECHA, esFinDeSemana, NAV_ITEMS } from "./lib/tareasUtils";
 
 

@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { OPCIONES_PRIORIDAD } from "../../lib/tareasUtils";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { 
   formatearFecha, 
+  OPCIONES_PRIORIDAD,
   esFinDeSemana, 
   BORDE_POR_ESTADO,
   PUNTO_POR_ESTADO,
