@@ -10,7 +10,7 @@ import { COLUMNAS, REGEX_FECHA, esFinDeSemana, NAV_ITEMS, TODAS_EMPRESAS } from 
 export default function App() {
   const [vistaActiva, setVistaActiva] = useState("calendario");
   const [empresas, setEmpresas] = useState([]);
-  const [empresaActivaId, setEmpresaActivaId] = useState(null);
+  const [empresaActivaId, setEmpresaActivaId] = useState(TODAS_EMPRESAS);
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [cargandoEmpresas, setCargandoEmpresas] = useState(true);
   const [errorEmpresas, setErrorEmpresas] = useState(null);
@@ -35,9 +35,6 @@ export default function App() {
         setErrorEmpresas(error.message);
       } else {
         setEmpresas(data ?? []);
-        if (data && data.length > 0) {
-          setEmpresaActivaId(data[0].id);
-        }
       }
       setCargandoEmpresas(false);
     }

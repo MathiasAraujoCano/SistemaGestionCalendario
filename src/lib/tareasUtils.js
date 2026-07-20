@@ -58,17 +58,28 @@ export const OPCIONES_ESTADO = [
   { id: "finalizado", label: "Finalizado" },
 ];
 
-// Paleta fija para distinguir empresas en vistas combinadas (calendario e
-// historial). El color se asigna por posición en la lista de empresas
-// (orden alfabético por nombre, tal como se cargan desde Supabase).
-export const PALETA_COLORES_EMPRESA = [
-  { punto: "bg-indigo-500", texto: "text-indigo-700", chip: "bg-indigo-50" },
-  { punto: "bg-amber-500", texto: "text-amber-700", chip: "bg-amber-50" },
-  { punto: "bg-emerald-500", texto: "text-emerald-700", chip: "bg-emerald-50" },
-  { punto: "bg-rose-500", texto: "text-rose-700", chip: "bg-rose-50" },
-];
+export const COLORES_FIJOS = {
+  azul: { punto: "bg-blue-500", texto: "text-blue-700", chip: "bg-blue-50" },
+  rosado: { punto: "bg-pink-500", texto: "text-pink-700", chip: "bg-pink-50" },
+};
+
+export const COLOR_POR_EMPRESA = {
+  "Jysk": "azul",
+  "Kiko": "rosado",
+};
+
+const ORDEN_COLOR_POR_DEFECTO = ["azul", "rosado"];
 
 export function colorDeEmpresa(empresas, empresaId) {
+  const empresa = empresas.find((e) => e.id === empresaId);
+  if (!empresa) return COLORES_FIJOS.azul;
+
+  const asignado = COLOR_POR_EMPRESA[empresa.nombre];
+  if (asignado) return COLORES_FIJOS[asignado];
+
+  // Sin asignación manual: por orden (alfabético, tal como se cargan),
+  // la primera empresa es azul y la segunda naranja.
   const idx = empresas.findIndex((e) => e.id === empresaId);
-  return PALETA_COLORES_EMPRESA[idx === -1 ? 0 : idx % PALETA_COLORES_EMPRESA.length];
+  const clave = ORDEN_COLOR_POR_DEFECTO[idx % ORDEN_COLOR_POR_DEFECTO.length];
+  return COLORES_FIJOS[clave];
 }

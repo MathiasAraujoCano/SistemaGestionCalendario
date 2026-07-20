@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Pencil, Check, X } from "lucide-react";
-import { PUNTO_POR_ESTADO, OPCIONES_ESTADO } from "../../lib/tareasUtils";
+import { PUNTO_POR_ESTADO, OPCIONES_ESTADO, colorDeEmpresa } from "../../lib/tareasUtils";
 
 export function ModalDetalleTarea({
   tarea,
@@ -18,6 +18,8 @@ export function ModalDetalleTarea({
   useEffect(() => {
     if (!editandoTitulo) setTituloEditado(tarea.titulo);
   }, [tarea.titulo, editandoTitulo]);
+
+  const colorEmpresa = empresas.length > 0 ? colorDeEmpresa(empresas, tarea.empresa_id) : null;
 
   const cancelarEdicionTitulo = () => {
     setTituloEditado(tarea.titulo);
@@ -136,7 +138,10 @@ export function ModalDetalleTarea({
 
             {empresas.length > 0 && (
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-500">Empresa</label>
+                <label className="mb-1 flex items-center gap-1 text-xs font-medium text-slate-500">
+                  {colorEmpresa && <span className={`h-2 w-2 rounded-full ${colorEmpresa.punto}`} />}
+                  Empresa
+                </label>
                 <select
                   value={tarea.empresa_id}
                   onChange={(e) => onActualizarEmpresa(tarea.id, e.target.value)}
@@ -150,20 +155,13 @@ export function ModalDetalleTarea({
                 </select>
               </div>
             )}
+          </div>
 
-            <div>
-              <p className="mb-1 text-xs font-medium text-slate-500">Prioridad</p>
-              <p className="rounded bg-slate-100 px-2 py-1.5 text-xs capitalize text-slate-600">
-                {tarea.prioridad ?? "sin definir"}
-              </p>
-            </div>
-
-            <div>
-              <p className="mb-1 text-xs font-medium text-slate-500">Vencimiento</p>
-              <p className="rounded bg-slate-100 px-2 py-1.5 text-xs text-slate-600">
-                {tarea.fecha_vencimiento ?? "sin fecha"}
-              </p>
-            </div>
+          <div>
+            <p className="mb-1 text-xs font-medium text-slate-500">Vencimiento</p>
+            <p className="rounded bg-slate-100 px-2 py-1.5 text-xs text-slate-600">
+              {tarea.fecha_vencimiento ?? "sin fecha"}
+            </p>
           </div>
 
           {tarea.estado === "pendiente" && (
