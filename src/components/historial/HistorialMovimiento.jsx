@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabaseClient'; // Ajustá esta ruta si tu cliente de Supabase está en otro lugar
+import { supabase } from '../../lib/supabaseClient';
+import { TODAS_EMPRESAS, colorDeEmpresa } from '../../lib/tareasUtils';
 
 const ESTADOS = {
   tareas: { label: 'Tarea', dot: 'bg-gray-400', bg: 'bg-gray-100', text: 'text-gray-700' },
@@ -18,7 +19,6 @@ function getEstadoInfo(estado) {
   );
 }
 
-// Formatea la fecha del registro de forma amigable
 function formatFecha(fechaISO) {
   const fecha = new Date(fechaISO);
   const ahora = new Date();
@@ -42,7 +42,6 @@ function formatFecha(fechaISO) {
   return `${fecha.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}, ${hora}`;
 }
 
-// Formatea duracion_segundos (tiempo que la tarea pasó en el estado anterior)
 function formatDuracion(segundos) {
   if (segundos === null || segundos === undefined) return null;
 
@@ -64,10 +63,12 @@ function formatDuracion(segundos) {
   return `${dias} ${dias === 1 ? 'día' : 'días'}, ${horas} hs`;
 }
 
-export default function HistorialMovimientos({ empresaId }) {
+export default function HistorialMovimientos({ empresaId, empresas = [] }) {
   const [movimientos, setMovimientos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const vistaCombinada = empresaId === TODAS_EMPRESAS;
 
   useEffect(() => {
     if (!empresaId) {
@@ -82,12 +83,17 @@ export default function HistorialMovimientos({ empresaId }) {
       setLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
+      let consulta = supabase
         .from('historial_auditoria')
         .select('*')
-        .eq('empresa_id', empresaId)
         .eq('tabla_afectada', 'tareas')
         .order('created_at', { ascending: false });
+
+      if (empresaId !== TODAS_EMPRESAS) {
+        consulta = consulta.eq('empresa_id', empresaId);
+      }
+
+      const { data, error: fetchError } = await consulta;
 
       if (!activo) return;
 
@@ -99,11 +105,12 @@ export default function HistorialMovimientos({ empresaId }) {
 
       const eventos = (data || [])
         .map((registro) => {
-          const anterior = registro.datos_anteriores; // null en un INSERT inicial
+          const anterior = registro.datos_anteriores;
           const nuevo = registro.datos_nuevos || {};
 
           return {
             id: registro.id,
+            empresaIdOrigen: registro.empresa_id,
             titulo: nuevo.titulo || anterior?.titulo || 'Tarea sin título',
             estadoAnterior: anterior?.estado ?? null,
             estadoNuevo: nuevo.estado ?? null,
@@ -112,8 +119,6 @@ export default function HistorialMovimientos({ empresaId }) {
             esCreacion: !anterior,
           };
         })
-        // Nos quedamos con: la creación de la tarea, o cambios donde el estado realmente cambió
-        // (la tabla también audita cambios de prioridad, asignado_a, etc. que no nos interesan acá)
         .filter((ev) => ev.esCreacion || (ev.estadoAnterior && ev.estadoNuevo && ev.estadoAnterior !== ev.estadoNuevo));
 
       setMovimientos(eventos);
@@ -142,7 +147,9 @@ export default function HistorialMovimientos({ empresaId }) {
   if (movimientos.length === 0) {
     return (
       <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
-        Todavía no hay movimientos registrados para esta empresa.
+        {vistaCombinada
+          ? 'Todavía no hay movimientos registrados.'
+          : 'Todavía no hay movimientos registrados para esta empresa.'}
       </div>
     );
   }
@@ -156,6 +163,10 @@ export default function HistorialMovimientos({ empresaId }) {
           const estadoNuevoInfo = getEstadoInfo(mov.estadoNuevo);
           const estadoAnteriorInfo = mov.estadoAnterior ? getEstadoInfo(mov.estadoAnterior) : null;
           const duracion = formatDuracion(mov.duracionSegundos);
+          const colorEmpresa = vistaCombinada ? colorDeEmpresa(empresas, mov.empresaIdOrigen) : null;
+          const nombreEmpresa = vistaCombinada
+            ? empresas.find((e) => e.id === mov.empresaIdOrigen)?.nombre ?? 'Empresa'
+            : null;
 
           return (
             <li key={mov.id} className="mb-6 ml-6 last:mb-0">
@@ -164,7 +175,14 @@ export default function HistorialMovimientos({ empresaId }) {
               />
 
               <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4">
-                <p className="text-sm font-medium text-gray-900 mb-2">{mov.titulo}</p>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-sm font-medium text-gray-900">{mov.titulo}</p>
+                  {colorEmpresa && (
+                    <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${colorEmpresa.chip} ${colorEmpresa.texto}`}>
+                      {nombreEmpresa}
+                    </span>
+                  )}
+                </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
                   {estadoAnteriorInfo && (

@@ -17,15 +17,24 @@ import { ModalCrearTarea } from "./ModalCrearTarea";
 import { ModalDetalleTarea } from "./ModalDetalleTarea";
 
 
-export default function Calendario({ tareas, onDragEnd, onCambiarEstado, onActualizarMotivo, onGuardarMotivo, onCrearTarea }) {
+export default function Calendario({
+  tareas,
+  onDragEnd,
+  onCambiarEstado,
+  onActualizarMotivo,
+  onGuardarMotivo,
+  onCrearTarea,
+  empresas = [],
+  empresaIdPorDefecto = null,
+  vistaCombinada = false,
+  onActualizarTitulo,
+  onActualizarEmpresa,
+}) {
   const [fechaRef, setFechaRef] = useState(() => new Date());
   const [vista, setVista] = useState("semana");
   const [idTareaSeleccionada, setIdTareaSeleccionada] = useState(null);
   const [fechaCreacion, setFechaCreacion] = useState(null);
 
-  // Derivada de "tareas" en cada render: si el estado cambia por drag-and-drop
-  // (o desde el Tablero, al volver a esta pestaña) el modal siempre refleja
-  // la versión más reciente sin necesidad de sincronizarla manualmente.
   const tareaSeleccionada = tareas.find((t) => t.id === idTareaSeleccionada) ?? null;
 
   const tareasPorFecha = useMemo(() => {
@@ -140,7 +149,6 @@ export default function Calendario({ tareas, onDragEnd, onCambiarEstado, onActua
               vista === "semana" ? "grid-cols-5" : "grid-cols-7"
             }`}
           >
-            {/* ENCABEZADOS DE LAS COLUMNAS */}
             {vista === "semana"
               ? diasHabiles.map((fecha, idx) => {
                   const esHoy = formatearFecha(fecha) === formatearFecha(new Date());
@@ -171,7 +179,6 @@ export default function Calendario({ tareas, onDragEnd, onCambiarEstado, onActua
                   </div>
                 ))}
 
-            {/* CUERPO DEL CALENDARIO (CELDA_CALENDARIO) */}
             {vista === "semana"
               ? diasHabiles.map((fecha) => (
                   <CeldaCalendario
@@ -181,7 +188,9 @@ export default function Calendario({ tareas, onDragEnd, onCambiarEstado, onActua
                     compacta={false}
                     onAbrirTarea={(t) => setIdTareaSeleccionada(t.id)}
                     onCrearEnFecha={(clave) => setFechaCreacion(clave)}
-                    ocultarNumero={true} // 👈 Le pasamos una nueva prop para que no dibuje el número abajo
+                    ocultarNumero={true}
+                    empresas={empresas}
+                    mostrarEmpresa={vistaCombinada}
                   />
                 ))
               : grillaMes.map((fecha, i) =>
@@ -194,6 +203,8 @@ export default function Calendario({ tareas, onDragEnd, onCambiarEstado, onActua
                       onAbrirTarea={(t) => setIdTareaSeleccionada(t.id)}
                       onCrearEnFecha={(clave) => setFechaCreacion(clave)}
                       ocultarNumero={false}
+                      empresas={empresas}
+                      mostrarEmpresa={vistaCombinada}
                     />
                   ) : (
                     <div key={`vacio-${i}`} className="min-h-[90px] bg-slate-50/50" />
@@ -210,6 +221,9 @@ export default function Calendario({ tareas, onDragEnd, onCambiarEstado, onActua
           onCambiarEstado={onCambiarEstado}
           onActualizarMotivo={onActualizarMotivo}
           onGuardarMotivo={onGuardarMotivo}
+          onActualizarTitulo={onActualizarTitulo}
+          onActualizarEmpresa={onActualizarEmpresa}
+          empresas={empresas}
         />
       )}
 
@@ -218,6 +232,8 @@ export default function Calendario({ tareas, onDragEnd, onCambiarEstado, onActua
           fecha={fechaCreacion}
           onCerrar={() => setFechaCreacion(null)}
           onCrear={onCrearTarea}
+          empresas={empresas}
+          empresaIdPorDefecto={empresaIdPorDefecto}
         />
       )}
     </div>

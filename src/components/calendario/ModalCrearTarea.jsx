@@ -1,13 +1,63 @@
 import { useState } from "react";
-import { OPCIONES_PRIORIDAD } from "../../lib/tareasUtils";
+import { formatearFecha } from "../../lib/tareasUtils";
+
+const pluralizarDia = (dia) => (dia.endsWith("s") ? dia : `${dia}s`);
+
+function finDeMes(base) {
+  return new Date(base.getFullYear(), base.getMonth() + 1, 0);
+}
+
+function finDeAnio(base) {
+  return new Date(base.getFullYear(), 11, 31);
+}
+
+function generarFechas(fechaBase, tipoRepeticion) {
+  const base = new Date(`${fechaBase}T00:00:00`);
+
+  if (tipoRepeticion === "unico") return [fechaBase];
+
+  if (tipoRepeticion === "diaria") {
+    const fin = finDeMes(base);
+    const fechas = [];
+    const cursor = new Date(base);
+    while (cursor <= fin) {
+      fechas.push(formatearFecha(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return fechas;
+  }
+
+  const fin = tipoRepeticion === "mensual" ? finDeMes(base) : finDeAnio(base);
+  const fechas = [];
+  const cursor = new Date(base);
+  while (cursor <= fin) {
+    fechas.push(formatearFecha(cursor));
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  return fechas;
+}
+
 // Modal de creación: se abre al clickear un espacio vacío de un día hábil.
-// La fecha viaja fija (no editable) y el estado inicial siempre es "pendiente".
-export function ModalCrearTarea({ fecha, onCerrar, onCrear }) {
+// `empresas` y `empresaIdPorDefecto` habilitan elegir a qué empresa
+// pertenece el ticket (por defecto, la empresa que se está viendo).
+export function ModalCrearTarea({ fecha, onCerrar, onCrear, empresas = [], empresaIdPorDefecto }) {
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
-  const [prioridad, setPrioridad] = useState("media");
+  const [empresaId, setEmpresaId] = useState(empresaIdPorDefecto ?? empresas[0]?.id ?? "");
+  const [tipoRepeticion, setTipoRepeticion] = useState("unico");
   const [enviando, setEnviando] = useState(false);
   const [errorLocal, setErrorLocal] = useState(null);
+
+  const nombreDia = pluralizarDia(
+    new Date(`${fecha}T00:00:00`).toLocaleDateString("es-ES", { weekday: "long" })
+  );
+
+  const opcionesRepeticion = [
+    { value: "unico", label: "Solo este día" },
+    { value: "diaria", label: "Todos los días (resto del mes)" },
+    { value: "mensual", label: `Todos los ${nombreDia} de este mes` },
+    { value: "anual", label: `Todos los ${nombreDia} del año` },
+  ];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -15,24 +65,33 @@ export function ModalCrearTarea({ fecha, onCerrar, onCrear }) {
       setErrorLocal("El título es obligatorio.");
       return;
     }
+    if (!empresaId) {
+      setErrorLocal("Elegí una empresa.");
+      return;
+    }
 
     setEnviando(true);
     setErrorLocal(null);
 
-    const resultado = await onCrear({
-      titulo: titulo.trim(),
-      descripcion: descripcion.trim(),
-      prioridad,
-      fecha_vencimiento: fecha,
-    });
+    const fechas = generarFechas(fecha, tipoRepeticion);
 
-    setEnviando(false);
+    for (const fechaVencimiento of fechas) {
+      const resultado = await onCrear({
+        titulo: titulo.trim(),
+        descripcion: descripcion.trim(),
+        prioridad: "media",
+        fecha_vencimiento: fechaVencimiento,
+        empresa_id: empresaId,
+      });
 
-    if (resultado?.error) {
-      setErrorLocal(resultado.error.message ?? "No se pudo crear la tarea.");
-      return;
+      if (resultado?.error) {
+        setEnviando(false);
+        setErrorLocal(resultado.error.message ?? "No se pudo crear la tarea.");
+        return;
+      }
     }
 
+    setEnviando(false);
     onCerrar();
   };
 
@@ -58,8 +117,25 @@ export function ModalCrearTarea({ fecha, onCerrar, onCrear }) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3 px-4 py-3">
+          {empresas.length > 0 && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Empresa</label>
+              <select
+                value={empresaId}
+                onChange={(e) => setEmpresaId(e.target.value)}
+                className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-400 focus:outline-none"
+              >
+                {empresas.map((empresa) => (
+                  <option key={empresa.id} value={empresa.id}>
+                    {empresa.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Fecha de vencimiento</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Fecha</label>
             <input
               type="text"
               disabled
@@ -97,15 +173,15 @@ export function ModalCrearTarea({ fecha, onCerrar, onCrear }) {
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Prioridad</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Repetición</label>
             <select
-              value={prioridad}
-              onChange={(e) => setPrioridad(e.target.value)}
-              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm capitalize focus:border-blue-400 focus:outline-none"
+              value={tipoRepeticion}
+              onChange={(e) => setTipoRepeticion(e.target.value)}
+              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-400 focus:outline-none"
             >
-              {OPCIONES_PRIORIDAD.map((p) => (
-                <option key={p} value={p}>
-                  {p}
+              {opcionesRepeticion.map((op) => (
+                <option key={op.value} value={op.value}>
+                  {op.label}
                 </option>
               ))}
             </select>

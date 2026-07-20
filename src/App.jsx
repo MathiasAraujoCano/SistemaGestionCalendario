@@ -4,7 +4,7 @@ import Calendario from "./components/calendario/Calendario";
 import TableroKanban from "./components/kanban/TableroKanban";
 import HistorialMovimientos from "./components/historial/HistorialMovimiento";
 import { supabase } from "./lib/supabaseClient";
-import { COLUMNAS, REGEX_FECHA, esFinDeSemana, NAV_ITEMS } from "./lib/tareasUtils";
+import { COLUMNAS, REGEX_FECHA, esFinDeSemana, NAV_ITEMS, TODAS_EMPRESAS } from "./lib/tareasUtils";
 
 
 export default function App() {
@@ -15,7 +15,6 @@ export default function App() {
   const [cargandoEmpresas, setCargandoEmpresas] = useState(true);
   const [errorEmpresas, setErrorEmpresas] = useState(null);
 
-  // --- Fuente de verdad única de "tareas", compartida por Calendario y Tablero ---
   const [tareas, setTareas] = useState([]);
   const [cargandoTareas, setCargandoTareas] = useState(true);
   const [errorTareas, setErrorTareas] = useState(null);
@@ -59,10 +58,12 @@ export default function App() {
       setCargandoTareas(true);
       setErrorTareas(null);
 
-      const { data, error } = await supabase
-        .from("tareas")
-        .select("*")
-        .eq("empresa_id", empresaActivaId);
+      let consulta = supabase.from("tareas").select("*");
+      if (empresaActivaId !== TODAS_EMPRESAS) {
+        consulta = consulta.eq("empresa_id", empresaActivaId);
+      }
+
+      const { data, error } = await consulta;
 
       if (!activo) return;
 
@@ -82,10 +83,6 @@ export default function App() {
   }, [empresaActivaId]);
 
   const empresaActiva = empresas.find((e) => e.id === empresaActivaId);
-
-  // --- Mutaciones compartidas sobre "tareas" ---
-  // Las usan tanto el drag-and-drop (Tablero y Calendario) como el modal de
-  // detalle y el formulario de creación del Calendario.
 
   const actualizarEstadoTarea = async (idTarea, nuevoEstado) => {
     const tareaAnterior = tareas.find((t) => String(t.id) === String(idTarea));
@@ -129,11 +126,6 @@ export default function App() {
     }
   };
 
-  // Único handleDragEnd para el Tablero y el Calendario (Semana o Mes): el
-  // droppableId de destino define la mutación.
-  // - id de columna del Kanban ("pendiente", "en_progreso", ...) -> cambia estado
-  // - fecha "YYYY-MM-DD" (mismo formato en ambas vistas del calendario) -> cambia fecha_vencimiento
-  // - fecha que cae en sábado/domingo -> se cancela de forma optimista, sin tocar Supabase
   const handleDragEnd = (result) => {
     const { source, destination, draggableId } = result;
     if (!destination) return;
@@ -162,19 +154,73 @@ export default function App() {
     if (error) setErrorTareas(error.message);
   };
 
-  // Crea una tarea desde el formulario del Calendario (día hábil vacío).
-  // Optimista: la agrega a la lista con un id temporal y la reemplaza por el
-  // registro real cuando Supabase confirma. Si falla, la retira y devuelve
-  // el error para que el modal lo muestre sin cerrarse.
-  const crearTarea = async ({ titulo, descripcion, prioridad, fecha_vencimiento }) => {
-    if (!empresaActivaId) {
-      return { error: { message: "No hay una empresa activa seleccionada." } };
+  // Actualiza el título de una tarea (edición inline en el modal de detalle).
+  const actualizarTituloTarea = async (idTarea, nuevoTitulo) => {
+    const tareaAnterior = tareas.find((t) => String(t.id) === String(idTarea));
+    if (!tareaAnterior) return;
+
+    setTareas((prev) =>
+      prev.map((t) => (String(t.id) === String(idTarea) ? { ...t, titulo: nuevoTitulo } : t))
+    );
+
+    const { error } = await supabase.from("tareas").update({ titulo: nuevoTitulo }).eq("id", tareaAnterior.id);
+
+    if (error) {
+      setErrorTareas(error.message);
+      setTareas((prev) => prev.map((t) => (String(t.id) === String(idTarea) ? tareaAnterior : t)));
     }
+  };
+
+  // Cambia la empresa de una tarea. Si la vista actual está filtrada por una
+  // sola empresa y la tarea pasa a otra, deja de pertenecer a esta vista y se
+  // saca de la lista local (el modal de detalle se cierra solo porque
+  // Calendario ya no la encuentra por id).
+  const actualizarEmpresaTarea = async (idTarea, nuevaEmpresaId) => {
+    const tareaAnterior = tareas.find((t) => String(t.id) === String(idTarea));
+    if (!tareaAnterior) return;
+
+    const seguiraVisible = empresaActivaId === TODAS_EMPRESAS || nuevaEmpresaId === empresaActivaId;
+
+    setTareas((prev) =>
+      seguiraVisible
+        ? prev.map((t) => (String(t.id) === String(idTarea) ? { ...t, empresa_id: nuevaEmpresaId } : t))
+        : prev.filter((t) => String(t.id) !== String(idTarea))
+    );
+
+    const { error } = await supabase
+      .from("tareas")
+      .update({ empresa_id: nuevaEmpresaId })
+      .eq("id", tareaAnterior.id);
+
+    if (error) {
+      setErrorTareas(error.message);
+      setTareas((prev) => {
+        const yaEsta = prev.some((t) => String(t.id) === String(idTarea));
+        return yaEsta
+          ? prev.map((t) => (String(t.id) === String(idTarea) ? tareaAnterior : t))
+          : [...prev, tareaAnterior];
+      });
+    }
+  };
+
+  // Crea una tarea desde el formulario del Calendario. `empresa_id` llega
+  // elegido desde el modal; si por algo no llega, cae a la empresa activa
+  // (salvo que estemos en "todas las empresas", donde es obligatorio elegir).
+  const crearTarea = async ({ titulo, descripcion, prioridad, fecha_vencimiento, empresa_id }) => {
+    const empresaDestino = empresa_id ?? (empresaActivaId !== TODAS_EMPRESAS ? empresaActivaId : null);
+
+    if (!empresaDestino) {
+      return { error: { message: "Elegí una empresa para el ticket." } };
+    }
+
+    // Solo la agregamos al estado local si pertenece a lo que se está
+    // mostrando ahora mismo (vista combinada, o misma empresa activa).
+    const perteneceAVistaActual = empresaActivaId === TODAS_EMPRESAS || empresaDestino === empresaActivaId;
 
     const idTemporal = `temp-${Date.now()}`;
     const tareaOptimista = {
       id: idTemporal,
-      empresa_id: empresaActivaId,
+      empresa_id: empresaDestino,
       titulo,
       descripcion,
       prioridad,
@@ -183,12 +229,12 @@ export default function App() {
       fecha_vencimiento,
     };
 
-    setTareas((prev) => [...prev, tareaOptimista]);
+    if (perteneceAVistaActual) setTareas((prev) => [...prev, tareaOptimista]);
 
     const { data, error } = await supabase
       .from("tareas")
       .insert({
-        empresa_id: empresaActivaId,
+        empresa_id: empresaDestino,
         titulo,
         descripcion,
         prioridad,
@@ -200,17 +246,18 @@ export default function App() {
 
     if (error) {
       setErrorTareas(error.message);
-      setTareas((prev) => prev.filter((t) => t.id !== idTemporal));
+      if (perteneceAVistaActual) setTareas((prev) => prev.filter((t) => t.id !== idTemporal));
       return { error };
     }
 
-    setTareas((prev) => prev.map((t) => (t.id === idTemporal ? data : t)));
+    if (perteneceAVistaActual) {
+      setTareas((prev) => prev.map((t) => (t.id === idTemporal ? data : t)));
+    }
     return { data };
   };
 
   return (
     <div className="flex h-screen w-full bg-gray-50 text-gray-800">
-      {/* Sidebar */}
       <aside className="flex w-56 flex-col border-r border-gray-200 bg-white">
         <div className="flex h-16 items-center px-5 text-lg font-semibold text-gray-900">
           Gestión
@@ -233,15 +280,12 @@ export default function App() {
         </nav>
       </aside>
 
-      {/* Contenido principal */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top bar */}
         <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
           <h1 className="text-base font-semibold text-gray-900 capitalize">
             {vistaActiva}
           </h1>
 
-          {/* Selector de Empresa Activa */}
           <div className="relative">
             <button
               onClick={() => setMenuAbierto((v) => !v)}
@@ -251,12 +295,26 @@ export default function App() {
               <Building2 className="h-4 w-4 text-gray-500" />
               {cargandoEmpresas
                 ? "Cargando..."
-                : empresaActiva?.nombre ?? "Sin empresas"}
+                : empresaActivaId === TODAS_EMPRESAS
+                  ? "Todas las empresas"
+                  : empresaActiva?.nombre ?? "Sin empresas"}
               <ChevronDown className="h-4 w-4 text-gray-400" />
             </button>
 
             {menuAbierto && (
               <div className="absolute right-0 z-10 mt-2 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                <button
+                  onClick={() => {
+                    setEmpresaActivaId(TODAS_EMPRESAS);
+                    setMenuAbierto(false);
+                  }}
+                  className={`block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                    empresaActivaId === TODAS_EMPRESAS ? "font-medium text-indigo-700" : "text-gray-700"
+                  }`}
+                >
+                  Todas las empresas
+                </button>
+                <div className="my-1 border-t border-gray-100" />
                 {empresas.map((empresa) => (
                   <button
                     key={empresa.id}
@@ -278,7 +336,6 @@ export default function App() {
           </div>
         </header>
 
-        {/* Área de contenido según vista */}
         <main className="flex-1 overflow-auto p-6">
           {errorEmpresas && (
             <div className="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -310,6 +367,13 @@ export default function App() {
                     onActualizarMotivo={actualizarMotivoLocal}
                     onGuardarMotivo={guardarMotivo}
                     onCrearTarea={crearTarea}
+                    empresas={empresas}
+                    empresaIdPorDefecto={
+                      empresaActivaId === TODAS_EMPRESAS ? empresas[0]?.id ?? null : empresaActivaId
+                    }
+                    vistaCombinada={empresaActivaId === TODAS_EMPRESAS}
+                    onActualizarTitulo={actualizarTituloTarea}
+                    onActualizarEmpresa={actualizarEmpresaTarea}
                   />
                 )}
                 {vistaActiva === "tablero" && (

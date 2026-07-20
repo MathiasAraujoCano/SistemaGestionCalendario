@@ -29,11 +29,13 @@ export const NAV_ITEMS = [
 
 export const ORDEN_PRIORIDAD = { alta: 0, media: 1, baja: 2 };
 
-// Formato usado por los droppableId de fecha en el calendario ("YYYY-MM-DD").
 export const REGEX_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
-// Formatea una fecha local como "YYYY-MM-DD" evitando el corrimiento de día
-// que provoca toISOString() al convertir a UTC.
+// Sentinel usado en el selector de empresa para representar "ver todas".
+// Compartido entre App.jsx e HistorialMovimiento.jsx para que ambos filtren
+// (o dejen de filtrar) exactamente en el mismo caso.
+export const TODAS_EMPRESAS = "todas";
+
 export function formatearFecha(fecha) {
   const y = fecha.getFullYear();
   const m = String(fecha.getMonth() + 1).padStart(2, "0");
@@ -41,8 +43,6 @@ export function formatearFecha(fecha) {
   return `${y}-${m}-${d}`;
 }
 
-// Recibe una fecha "YYYY-MM-DD" (mismo formato que fecha_vencimiento y que
-// los droppableId del calendario) y determina si cae en sábado o domingo.
 export function esFinDeSemana(fechaStr) {
   const dia = new Date(`${fechaStr}T00:00:00`).getDay();
   return dia === 0 || dia === 6;
@@ -57,3 +57,18 @@ export const OPCIONES_ESTADO = [
   { id: "pendiente", label: "Pendiente" },
   { id: "finalizado", label: "Finalizado" },
 ];
+
+// Paleta fija para distinguir empresas en vistas combinadas (calendario e
+// historial). El color se asigna por posición en la lista de empresas
+// (orden alfabético por nombre, tal como se cargan desde Supabase).
+export const PALETA_COLORES_EMPRESA = [
+  { punto: "bg-indigo-500", texto: "text-indigo-700", chip: "bg-indigo-50" },
+  { punto: "bg-amber-500", texto: "text-amber-700", chip: "bg-amber-50" },
+  { punto: "bg-emerald-500", texto: "text-emerald-700", chip: "bg-emerald-50" },
+  { punto: "bg-rose-500", texto: "text-rose-700", chip: "bg-rose-50" },
+];
+
+export function colorDeEmpresa(empresas, empresaId) {
+  const idx = empresas.findIndex((e) => e.id === empresaId);
+  return PALETA_COLORES_EMPRESA[idx === -1 ? 0 : idx % PALETA_COLORES_EMPRESA.length];
+}

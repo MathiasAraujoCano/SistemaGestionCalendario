@@ -10,7 +10,8 @@ import {
   ORDEN_PRIORIDAD,
   DIAS_SEMANA_COMPLETA,
   DIAS_HABILES,
-  OPCIONES_ESTADO
+  OPCIONES_ESTADO,
+  colorDeEmpresa,
    } from "../../lib/tareasUtils";
 
 // Grilla del mes completo (incluye sábados/domingos), con relleno null para
@@ -65,7 +66,7 @@ export function formatearRangoSemana(dias) {
 // (incluye fines de semana). El droppableId es "YYYY-MM-DD" en ambos casos,
 // por eso el handleDragEnd centralizado en App.jsx no necesita saber qué
 // vista está activa.
-export function CeldaCalendario({ fecha, tareas, compacta, onAbrirTarea, onCrearEnFecha }) {
+export function CeldaCalendario({ fecha, tareas, compacta, onAbrirTarea, onCrearEnFecha, empresas = [], mostrarEmpresa = false }) {
   const clave = formatearFecha(fecha);
   const esHoy = clave === formatearFecha(new Date());
   const finDeSemana = esFinDeSemana(clave);
@@ -96,36 +97,47 @@ export function CeldaCalendario({ fecha, tareas, compacta, onAbrirTarea, onCrear
           </span>
 
           <div className="flex-1 space-y-1.5 overflow-y-auto">
-            {tareas.map((tarea, index) => (
-              <Draggable key={tarea.id} draggableId={String(tarea.id)} index={index}>
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    {...provided.dragHandleProps}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAbrirTarea(tarea);
-                    }}
-                    title={tarea.titulo}
-                    className={`cursor-pointer rounded border-l-2 bg-slate-50 shadow-sm ${
-                      BORDE_POR_ESTADO[tarea.estado] ?? "border-slate-400"
-                    } ${
-                      compacta ? "truncate px-1.5 py-0.5 text-[11px]" : "px-2 py-1.5 text-xs"
-                    } ${snapshot.isDragging ? "ring-2 ring-blue-400" : ""}`}
-                  >
-                    <p className={compacta ? "truncate" : "line-clamp-2 font-medium text-slate-700"}>
-                      {tarea.titulo}
-                    </p>
-                    {!compacta && (
-                      <span className="mt-1 inline-block rounded bg-white px-1.5 py-0.5 text-[10px] capitalize text-slate-400">
-                        {tarea.prioridad ?? "sin prioridad"}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </Draggable>
-            ))}
+            {tareas.map((tarea, index) => {
+
+              const colorEmpresa = mostrarEmpresa ? colorDeEmpresa(empresas, tarea.empresa_id) : null;
+
+              return (
+                <Draggable key={tarea.id} draggableId={String(tarea.id)} index={index}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.draggableProps}
+                      {...provided.dragHandleProps}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAbrirTarea(tarea);
+                      }}
+                      title={tarea.titulo}
+                      className={`cursor-pointer rounded border-l-2 bg-slate-50 shadow-sm ${
+                        BORDE_POR_ESTADO[tarea.estado] ?? "border-slate-400"
+                      } ${colorEmpresa ? colorEmpresa.chip : "bg-slate-50"} ${
+                        compacta ? "truncate px-1.5 py-0.5 text-[11px]" : "px-2 py-1.5 text-xs"
+                      } ${snapshot.isDragging ? "ring-2 ring-blue-400" : ""}`}
+                    >
+                      <div className="flex items-center gap-1">
+                        {colorEmpresa && (
+                          <span className={`h-2 w-2 shrink-0 rounded-full ${colorEmpresa.punto}`} 
+                      />
+                        )}
+                        <p className={compacta ? "truncate" : "line-clamp-2 font-medium text-slate-700"}>
+                          {tarea.titulo}
+                        </p>
+                      </div>
+                      {!compacta && (
+                        <span className="mt-1 inline-block rounded bg-white px-1.5 py-0.5 text-[10px] capitalize text-slate-400">
+                          {tarea.prioridad ?? "sin prioridad"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </Draggable>
+                )
+              })}
             {provided.placeholder}
           </div>
         </div>
