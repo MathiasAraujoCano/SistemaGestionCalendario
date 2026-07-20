@@ -1,0 +1,225 @@
+import { useState, useMemo } from "react";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import {
+  ORDEN_PRIORIDAD,
+  formatearFecha,
+  DIAS_SEMANA_COMPLETA,
+  DIAS_HABILES,
+} from "../../lib/tareasUtils";
+import { 
+  generarGrillaMes, 
+  obtenerInicioSemana, 
+  generarDiasHabiles, 
+  formatearRangoSemana, 
+  CeldaCalendario,
+} from "./helper";
+import { ModalCrearTarea } from "./ModalCrearTarea";
+import { ModalDetalleTarea } from "./ModalDetalleTarea";
+
+
+export default function Calendario({ tareas, onDragEnd, onCambiarEstado, onActualizarMotivo, onGuardarMotivo, onCrearTarea }) {
+  const [fechaRef, setFechaRef] = useState(() => new Date());
+  const [vista, setVista] = useState("semana");
+  const [idTareaSeleccionada, setIdTareaSeleccionada] = useState(null);
+  const [fechaCreacion, setFechaCreacion] = useState(null);
+
+  // Derivada de "tareas" en cada render: si el estado cambia por drag-and-drop
+  // (o desde el Tablero, al volver a esta pestaña) el modal siempre refleja
+  // la versión más reciente sin necesidad de sincronizarla manualmente.
+  const tareaSeleccionada = tareas.find((t) => t.id === idTareaSeleccionada) ?? null;
+
+  const tareasPorFecha = useMemo(() => {
+    const agrupadas = {};
+    for (const t of tareas) {
+      if (!t.fecha_vencimiento) continue;
+      (agrupadas[t.fecha_vencimiento] ??= []).push(t);
+    }
+
+    Object.values(agrupadas).forEach((lista) =>
+      lista.sort((a, b) => {
+        const pa = ORDEN_PRIORIDAD[a.prioridad?.toLowerCase()] ?? 99;
+        const pb = ORDEN_PRIORIDAD[b.prioridad?.toLowerCase()] ?? 99;
+        if (pa !== pb) return pa - pb;
+        return (a.titulo ?? "").localeCompare(b.titulo ?? "");
+      })
+    );
+
+    return agrupadas;
+  }, [tareas]);
+
+  const grillaMes = useMemo(() => generarGrillaMes(fechaRef), [fechaRef]);
+  const diasHabiles = useMemo(() => generarDiasHabiles(fechaRef), [fechaRef]);
+
+  const irAnterior = () => {
+    setFechaRef((prev) => {
+      if (vista === "semana") {
+        const d = new Date(prev);
+        d.setDate(d.getDate() - 7);
+        return d;
+      }
+      return new Date(prev.getFullYear(), prev.getMonth() - 1, 1);
+    });
+  };
+
+  const irSiguiente = () => {
+    setFechaRef((prev) => {
+      if (vista === "semana") {
+        const d = new Date(prev);
+        d.setDate(d.getDate() + 7);
+        return d;
+      }
+      return new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
+    });
+  };
+
+  const irHoy = () => setFechaRef(new Date());
+
+  return (
+    <div>
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="text-sm font-semibold capitalize text-slate-700">
+              {vista === "semana"
+                ? formatearRangoSemana(diasHabiles)
+                : fechaRef.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}
+            </h3>
+
+            <div className="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
+              <button
+                type="button"
+                onClick={() => setVista("semana")}
+                className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                  vista === "semana" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Semana
+              </button>
+              <button
+                type="button"
+                onClick={() => setVista("mes")}
+                className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                  vista === "mes" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Mes
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={irAnterior}
+              className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
+              aria-label="Anterior"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={irHoy}
+              className="rounded px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
+            >
+              Hoy
+            </button>
+            <button
+              type="button"
+              onClick={irSiguiente}
+              className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
+              aria-label="Siguiente"
+            >
+              ›
+            </button>
+          </div>
+        </div>
+
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div
+            className={`grid gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200 ${
+              vista === "semana" ? "grid-cols-5" : "grid-cols-7"
+            }`}
+          >
+            {/* ENCABEZADOS DE LAS COLUMNAS */}
+            {vista === "semana"
+              ? diasHabiles.map((fecha, idx) => {
+                  const esHoy = formatearFecha(fecha) === formatearFecha(new Date());
+                  return (
+                    <div
+                      key={formatearFecha(fecha)}
+                      className={`flex flex-col items-center justify-center py-1.5 bg-slate-50 border-b border-slate-200`}
+                    >
+                      <span className="text-[10px] font-semibold uppercase text-slate-400 leading-none">
+                        {DIAS_HABILES[idx]}
+                      </span>
+                      <span
+                        className={`mt-0.5 text-sm font-bold leading-none flex h-6 w-6 items-center justify-center rounded-full ${
+                          esHoy ? "bg-blue-600 text-white shadow-sm" : "text-slate-700"
+                        }`}
+                      >
+                        {fecha.getDate()}
+                      </span>
+                    </div>
+                  );
+                })
+              : DIAS_SEMANA_COMPLETA.map((dia) => (
+                  <div
+                    key={dia}
+                    className="bg-slate-50 py-2 text-center text-[11px] font-semibold uppercase text-slate-500 border-b border-slate-200"
+                  >
+                    {dia}
+                  </div>
+                ))}
+
+            {/* CUERPO DEL CALENDARIO (CELDA_CALENDARIO) */}
+            {vista === "semana"
+              ? diasHabiles.map((fecha) => (
+                  <CeldaCalendario
+                    key={formatearFecha(fecha)}
+                    fecha={fecha}
+                    tareas={tareasPorFecha[formatearFecha(fecha)] ?? []}
+                    compacta={false}
+                    onAbrirTarea={(t) => setIdTareaSeleccionada(t.id)}
+                    onCrearEnFecha={(clave) => setFechaCreacion(clave)}
+                    ocultarNumero={true} // 👈 Le pasamos una nueva prop para que no dibuje el número abajo
+                  />
+                ))
+              : grillaMes.map((fecha, i) =>
+                  fecha ? (
+                    <CeldaCalendario
+                      key={formatearFecha(fecha)}
+                      fecha={fecha}
+                      tareas={tareasPorFecha[formatearFecha(fecha)] ?? []}
+                      compacta={true}
+                      onAbrirTarea={(t) => setIdTareaSeleccionada(t.id)}
+                      onCrearEnFecha={(clave) => setFechaCreacion(clave)}
+                      ocultarNumero={false}
+                    />
+                  ) : (
+                    <div key={`vacio-${i}`} className="min-h-[90px] bg-slate-50/50" />
+                  )
+                )}
+          </div>
+        </DragDropContext>
+      </div>
+
+      {tareaSeleccionada && (
+        <ModalDetalleTarea
+          tarea={tareaSeleccionada}
+          onCerrar={() => setIdTareaSeleccionada(null)}
+          onCambiarEstado={onCambiarEstado}
+          onActualizarMotivo={onActualizarMotivo}
+          onGuardarMotivo={onGuardarMotivo}
+        />
+      )}
+
+      {fechaCreacion && (
+        <ModalCrearTarea
+          fecha={fechaCreacion}
+          onCerrar={() => setFechaCreacion(null)}
+          onCrear={onCrearTarea}
+        />
+      )}
+    </div>
+  );
+}
