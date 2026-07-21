@@ -130,7 +130,9 @@ export function CeldaCalendario({
                         {colorEmpresa && (
                           <span className={`h-2 w-2 shrink-0 rounded-full ${colorEmpresa.punto}`} />
                         )}
-                        <p className={compacta ? "truncate" : "line-clamp-2 font-medium text-slate-700"}>
+                        <p className={`${compacta ? "truncate" : "line-clamp-2 font-medium text-slate-700"} ${
+                          tarea.estado === "finalizado" ? "text-slate-400 line-through" : ""
+                        }`}>
                           {tarea.titulo}
                         </p>
                       </div>

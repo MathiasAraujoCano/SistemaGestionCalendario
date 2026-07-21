@@ -4,7 +4,7 @@ import Calendario from "./components/calendario/Calendario";
 import TableroKanban from "./components/kanban/TableroKanban";
 import HistorialMovimientos from "./components/historial/HistorialMovimiento";
 import { supabase } from "./lib/supabaseClient";
-import { COLUMNAS, REGEX_FECHA, esFinDeSemana, NAV_ITEMS, TODAS_EMPRESAS } from "./lib/tareasUtils";
+import { COLUMNAS, REGEX_FECHA, esFinDeSemana, NAV_ITEMS, TODAS_EMPRESAS, compararTareas } from "./lib/tareasUtils";
 
 
 export default function App() {
@@ -104,24 +104,69 @@ export default function App() {
     }
   };
 
-  const actualizarFechaTarea = async (idTarea, nuevaFecha) => {
-    const tareaAnterior = tareas.find((t) => String(t.id) === String(idTarea));
-    if (!tareaAnterior) return;
+  // const actualizarFechaTarea = async (idTarea, nuevaFecha) => {
+  //   const tareaAnterior = tareas.find((t) => String(t.id) === String(idTarea));
+  //   if (!tareaAnterior) return;
 
-    setTareas((prev) =>
-      prev.map((t) => (String(t.id) === String(idTarea) ? { ...t, fecha_vencimiento: nuevaFecha } : t))
-    );
+  //   setTareas((prev) =>
+  //     prev.map((t) => (String(t.id) === String(idTarea) ? { ...t, fecha_vencimiento: nuevaFecha } : t))
+  //   );
 
-    const { error } = await supabase
-      .from("tareas")
-      .update({ fecha_vencimiento: nuevaFecha })
-      .eq("id", tareaAnterior.id);
+  //   const { error } = await supabase
+  //     .from("tareas")
+  //     .update({ fecha_vencimiento: nuevaFecha })
+  //     .eq("id", tareaAnterior.id);
 
-    if (error) {
-      setErrorTareas(error.message);
-      setTareas((prev) => prev.map((t) => (String(t.id) === String(idTarea) ? tareaAnterior : t)));
-    }
-  };
+  //   if (error) {
+  //     setErrorTareas(error.message);
+  //     setTareas((prev) => prev.map((t) => (String(t.id) === String(idTarea) ? tareaAnterior : t)));
+  //   }
+  // };
+
+  // Mueve una tarea a una posición puntual dentro del día `fechaDestino`.
+// Sirve para dos casos: reordenar manualmente dentro del mismo día
+// (fechaDestino = la fecha que ya tenía), o mandarla a otro día. En ambos
+// casos reasigna "orden" a todas las tareas de ese día para que el orden
+// manual quede persistido.
+const moverTarea = async (idTarea, fechaDestino, indiceDestino) => {
+  const tareaMovida = tareas.find((t) => String(t.id) === String(idTarea));
+  if (!tareaMovida) return;
+
+  const restoDelDia = tareas
+    .filter((t) => t.fecha_vencimiento === fechaDestino && String(t.id) !== String(idTarea))
+    .sort(compararTareas);
+
+  restoDelDia.splice(indiceDestino, 0, { ...tareaMovida, fecha_vencimiento: fechaDestino });
+
+  const actualizaciones = restoDelDia.map((t, idx) => ({
+    id: t.id,
+    fecha_vencimiento: fechaDestino,
+    orden: idx,
+  }));
+
+  const anteriores = tareas;
+
+  setTareas((prev) =>
+    prev.map((t) => {
+      const actualizada = actualizaciones.find((a) => String(a.id) === String(t.id));
+      return actualizada
+        ? { ...t, fecha_vencimiento: actualizada.fecha_vencimiento, orden: actualizada.orden }
+        : t;
+    })
+  );
+
+  const resultados = await Promise.all(
+    actualizaciones.map((t) =>
+      supabase.from("tareas").update({ fecha_vencimiento: t.fecha_vencimiento, orden: t.orden }).eq("id", t.id)
+    )
+  );
+
+  const conError = resultados.find((r) => r.error);
+  if (conError) {
+    setErrorTareas(conError.error.message);
+    setTareas(anteriores);
+  }
+};
 
   const handleDragEnd = (result) => {
     const { source, destination, draggableId } = result;
@@ -138,7 +183,8 @@ export default function App() {
 
     if (esFechaDestino) {
       if (esFinDeSemana(destination.droppableId)) return;
-      actualizarFechaTarea(draggableId, destination.droppableId);
+      moverTarea(draggableId, destination.droppableId, destination.index);
+      // actualizarFechaTarea(draggableId, destination.droppableId);
     }
   };
 

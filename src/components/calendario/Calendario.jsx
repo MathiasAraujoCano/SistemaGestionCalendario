@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import {
-  ORDEN_PRIORIDAD,
+  compararTareas,
   formatearFecha,
   DIAS_SEMANA_COMPLETA,
   DIAS_HABILES,
@@ -34,8 +34,27 @@ export default function Calendario({
   const [vista, setVista] = useState("semana");
   const [idTareaSeleccionada, setIdTareaSeleccionada] = useState(null);
   const [fechaCreacion, setFechaCreacion] = useState(null);
+  const arrastrandoRef = useRef(false);
+  const ultimoDragEndRef = useRef(0);
 
   const tareaSeleccionada = tareas.find((t) => t.id === idTareaSeleccionada) ?? null;
+
+  const manejarInicioDrag = () => {
+    arrastrandoRef.current = true;
+  };
+
+  const manejarFinDrag = (result) => {
+    arrastrandoRef.current = false;
+    ultimoDragEndRef.current = Date.now();
+    onDragEnd(result);
+  };
+
+  // Evita que el click "fantasma" que dispara el navegador justo después de
+  // soltar un ticket abra el modal de crear tarea.
+  const abrirCreacion = (clave) => {
+    if (arrastrandoRef.current || Date.now() - ultimoDragEndRef.current < 250) return;
+    setFechaCreacion(clave);
+  };
 
   const tareasPorFecha = useMemo(() => {
     const agrupadas = {};
@@ -45,12 +64,13 @@ export default function Calendario({
     }
 
     Object.values(agrupadas).forEach((lista) =>
-      lista.sort((a, b) => {
-        const pa = ORDEN_PRIORIDAD[a.prioridad?.toLowerCase()] ?? 99;
-        const pb = ORDEN_PRIORIDAD[b.prioridad?.toLowerCase()] ?? 99;
-        if (pa !== pb) return pa - pb;
-        return (a.titulo ?? "").localeCompare(b.titulo ?? "");
-      })
+      lista.sort(compararTareas)
+      // lista.sort((a, b) => {
+      //   const pa = ORDEN_PRIORIDAD[a.prioridad?.toLowerCase()] ?? 99;
+      //   const pb = ORDEN_PRIORIDAD[b.prioridad?.toLowerCase()] ?? 99;
+      //   if (pa !== pb) return pa - pb;
+      //   return (a.titulo ?? "").localeCompare(b.titulo ?? "");
+      // })
     );
 
     return agrupadas;
@@ -143,7 +163,7 @@ export default function Calendario({
           </div>
         </div>
 
-        <DragDropContext onDragEnd={onDragEnd}>
+        <DragDropContext onDragStart={manejarInicioDrag} onDragEnd={manejarFinDrag}>
           <div
             className={`grid gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200 ${
               vista === "semana" ? "grid-cols-5" : "grid-cols-7"
@@ -187,7 +207,7 @@ export default function Calendario({
                     tareas={tareasPorFecha[formatearFecha(fecha)] ?? []}
                     compacta={false}
                     onAbrirTarea={(t) => setIdTareaSeleccionada(t.id)}
-                    onCrearEnFecha={(clave) => setFechaCreacion(clave)}
+                    onCrearEnFecha={abrirCreacion}
                     ocultarNumero={true}
                     empresas={empresas}
                     mostrarEmpresa={vistaCombinada}
@@ -201,7 +221,7 @@ export default function Calendario({
                       tareas={tareasPorFecha[formatearFecha(fecha)] ?? []}
                       compacta={true}
                       onAbrirTarea={(t) => setIdTareaSeleccionada(t.id)}
-                      onCrearEnFecha={(clave) => setFechaCreacion(clave)}
+                      onCrearEnFecha={abrirCreacion}
                       ocultarNumero={false}
                       empresas={empresas}
                       mostrarEmpresa={vistaCombinada}

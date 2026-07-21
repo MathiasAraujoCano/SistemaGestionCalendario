@@ -83,3 +83,19 @@ export function colorDeEmpresa(empresas, empresaId) {
   const clave = ORDEN_COLOR_POR_DEFECTO[idx % ORDEN_COLOR_POR_DEFECTO.length];
   return COLORES_FIJOS[clave];
 }
+
+// Orden de despliegue dentro de un mismo día: las tareas finalizadas
+// siempre van al final. Dentro de cada grupo (finalizadas / no finalizadas)
+// respeta el orden manual (arrastrar y soltar, guardado en "orden") y, si
+// coincide, ordena alfabéticamente como último criterio.
+export function compararTareas(a, b) {
+  const finalizadoA = a.estado === "finalizado" ? 1 : 0;
+  const finalizadoB = b.estado === "finalizado" ? 1 : 0;
+  if (finalizadoA !== finalizadoB) return finalizadoA - finalizadoB;
+
+  const ordenA = a.orden ?? 0;
+  const ordenB = b.orden ?? 0;
+  if (ordenA !== ordenB) return ordenA - ordenB;
+
+  return (a.titulo ?? "").localeCompare(b.titulo ?? "");
+}
