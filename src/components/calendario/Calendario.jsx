@@ -165,10 +165,7 @@ export default function Calendario({
 
         <DragDropContext onDragStart={manejarInicioDrag} onDragEnd={manejarFinDrag}>
           <div
-            className={`grid gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200 ${
-              vista === "semana" ? "grid-cols-5" : "grid-cols-7"
-            }`}
-          >
+            className="grid gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200 grid-cols-5">
             {vista === "semana"
               ? diasHabiles.map((fecha, idx) => {
                   const esHoy = formatearFecha(fecha) === formatearFecha(new Date());
@@ -190,7 +187,7 @@ export default function Calendario({
                     </div>
                   );
                 })
-              : DIAS_SEMANA_COMPLETA.map((dia) => (
+              : DIAS_HABILES.map((dia) => (
                   <div
                     key={dia}
                     className="bg-slate-50 py-2 text-center text-[11px] font-semibold uppercase text-slate-500 border-b border-slate-200"

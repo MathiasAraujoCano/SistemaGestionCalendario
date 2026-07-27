@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { formatearFecha } from "../../lib/tareasUtils";
+import { formatearFecha, FIN_RECURRENCIA, ajustarADiaHabilAnterior } from "../../lib/tareasUtils";
 
 const pluralizarDia = (dia) => (dia.endsWith("s") ? dia : `${dia}s`);
 
@@ -7,8 +7,25 @@ function finDeMes(base) {
   return new Date(base.getFullYear(), base.getMonth() + 1, 0);
 }
 
-function finDeAnio(base) {
-  return new Date(base.getFullYear(), 11, 31);
+// Mismo día del mes (ej: el 15), desde la fecha base hasta FIN_RECURRENCIA (2027).
+// Si cae fin de semana, se ajusta al viernes hábil anterior.
+function mismoDiaDelMesHastaFinDeRecurrencia(base) {
+  const dia = base.getDate();
+  const fechas = [];
+  let anio = base.getFullYear();
+  let mes = base.getMonth();
+
+  while (new Date(anio, mes, 1) <= FIN_RECURRENCIA) {
+    const ultimoDiaDelMes = new Date(anio, mes + 1, 0).getDate();
+    if (dia <= ultimoDiaDelMes) {
+      const candidata = ajustarADiaHabilAnterior(new Date(anio, mes, dia));
+      if (candidata >= base) fechas.push(candidata);
+    }
+    mes++;
+    if (mes > 11) { mes = 0; anio++; }
+  }
+
+  return fechas;
 }
 
 function ocurrenciasMismoDiaSemana(base, fin) {
@@ -67,11 +84,11 @@ function generarFechas(fechaBase, tipoRepeticion, fechaFinRango) {
   }
 
   if (tipoRepeticion === "semanal_anio") {
-    return ocurrenciasMismoDiaSemana(base, finDeAnio(base)).map(formatearFecha);
+    return ocurrenciasMismoDiaSemana(base, FIN_RECURRENCIA).map(formatearFecha);
   }
 
   if (tipoRepeticion === "mensual_dia") {
-    return mismoDiaDelMesRestoDelAnio(base).map(formatearFecha);
+    return mismoDiaDelMesHastaFinDeRecurrencia(base).map(formatearFecha);
   }
 
   return [fechaBase];

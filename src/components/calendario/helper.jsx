@@ -11,13 +11,21 @@ export function generarGrillaMes(fechaRef) {
   const anio = fechaRef.getFullYear();
   const mes = fechaRef.getMonth();
 
-  const primerDia = new Date(anio, mes, 1);
+  // const primerDia = new Date(anio, mes, 1);
   const ultimoDia = new Date(anio, mes + 1, 0);
 
+  const diasHabiles = [];
+  for (let d = 1; d <= ultimoDia.getDate(); d++) {
+    const fecha = new Date(anio, mes, d);
+    const diaSemana = fecha.getDay();
+    if (diaSemana !== 0 && diaSemana !== 6) diasHabiles.push(fecha);
+  }
+
+  const offset = (diasHabiles[0]?.getDay() ?? 1) - 1; 
   const dias = [];
-  for (let i = 0; i < primerDia.getDay(); i++) dias.push(null);
-  for (let d = 1; d <= ultimoDia.getDate(); d++) dias.push(new Date(anio, mes, d));
-  while (dias.length % 7 !== 0) dias.push(null);
+  for (let i = 0; i < offset; i++) dias.push(null);
+  dias.push(...diasHabiles);
+  while (dias.length % 5 !== 0) dias.push(null);
 
   return dias;
 }

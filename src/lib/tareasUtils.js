@@ -99,3 +99,16 @@ export function compararTareas(a, b) {
 
   return (a.titulo ?? "").localeCompare(b.titulo ?? "");
 }
+
+// Última fecha hasta la que se generan tareas recurrentes.
+// Fija en 2027 para cubrir tareas futuras sin tener que retocar esto cada año.
+export const FIN_RECURRENCIA = new Date(2027, 11, 31);
+
+// Si la fecha cae sábado o domingo, la retrocede al viernes hábil más cercano.
+export function ajustarADiaHabilAnterior(fecha) {
+  const d = new Date(fecha);
+  const dia = d.getDay();
+  if (dia === 6) d.setDate(d.getDate() - 1); // sábado -> viernes
+  else if (dia === 0) d.setDate(d.getDate() - 2); // domingo -> viernes
+  return d;
+}
