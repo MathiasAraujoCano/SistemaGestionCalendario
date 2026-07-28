@@ -112,3 +112,7 @@ export function ajustarADiaHabilAnterior(fecha) {
   else if (dia === 0) d.setDate(d.getDate() - 2); // domingo -> viernes
   return d;
 }
+
+export function normalizarTexto(texto) {
+  return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}

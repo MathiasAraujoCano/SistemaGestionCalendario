@@ -10,14 +10,40 @@ export function ModalDetalleTarea({
   onGuardarMotivo,
   onActualizarTitulo,
   onActualizarEmpresa,
+  onActualizarDescripcion,
+  onEliminarTarea,
   empresas = [],
 }) {
   const [editandoTitulo, setEditandoTitulo] = useState(false);
   const [tituloEditado, setTituloEditado] = useState(tarea.titulo);
+  const [editandoDescripcion, setEditandoDescripcion] = useState(false);
+  const [descripcionEditada, setDescripcionEditada] = useState(tarea.descripcion ?? "");
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
 
   useEffect(() => {
     if (!editandoTitulo) setTituloEditado(tarea.titulo);
   }, [tarea.titulo, editandoTitulo]);
+
+  useEffect(() => {
+    if (!editandoDescripcion) setDescripcionEditada(tarea.descripcion ?? "");
+  }, [tarea.descripcion, editandoDescripcion]);
+
+  const cancelarEdicionDescripcion = () => {
+    setDescripcionEditada(tarea.descripcion ?? "");
+    setEditandoDescripcion(false);
+  };
+
+  const guardarDescripcion = () => {
+    const valor = descripcionEditada.trim();
+    setEditandoDescripcion(false);
+    if (valor === (tarea.descripcion ?? "")) return;
+    onActualizarDescripcion(tarea.id, valor);
+  };
+
+  const eliminar = () => {
+    onEliminarTarea(tarea.id);
+    onCerrar();
+  };
 
   const colorEmpresa = empresas.length > 0 ? colorDeEmpresa(empresas, tarea.empresa_id) : null;
 
@@ -115,10 +141,41 @@ export function ModalDetalleTarea({
         <div className="space-y-3 px-4 py-3 text-sm">
           <div>
             <p className="mb-1 text-xs font-medium text-slate-500">Descripción</p>
-            <p className="whitespace-pre-wrap text-slate-700">
-              {tarea.descripcion?.trim() ? tarea.descripcion : "Sin descripción."}
-            </p>
+            {!editandoDescripcion && (
+              <button
+                type="button"
+                onClick={() => setEditandoDescripcion(true)}
+                className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Editar descripción"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
+
+            {editandoDescripcion ? (
+              <div className="space-y-1.5">
+                <textarea
+                  autoFocus
+                  value={descripcionEditada}
+                  onChange={(e) => setDescripcionEditada(e.target.value)}
+                  rows={3}
+                  className="w-full resize-none rounded border border-blue-300 px-2 py-1.5 text-sm text-slate-700 focus:outline-none"
+                />
+                <div className="flex justify-end gap-1.5">
+                  <button type="button" onClick={cancelarEdicionDescripcion} className="rounded p-1 text-slate-400 hover:bg-slate-100" aria-label="Cancelar edición">
+                    <X className="h-4 w-4" />
+                  </button>
+                  <button type="button" onClick={guardarDescripcion} className="rounded p-1 text-green-600 hover:bg-green-50" aria-label="Guardar descripción">
+                    <Check className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="whitespace-pre-wrap text-slate-700">
+                {tarea.descripcion?.trim() ? tarea.descripcion : "Sin descripción."}
+              </p>
+            )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -180,6 +237,23 @@ export function ModalDetalleTarea({
             </div>
           )}
         </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+              {confirmandoEliminar ? (
+                <>
+                  <span className="mr-auto text-xs text-slate-500">¿Eliminar esta tarea?</span>
+                  <button type="button" onClick={() => setConfirmandoEliminar(false)} className="rounded px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100">
+                    Cancelar
+                  </button>
+                  <button type="button" onClick={eliminar} className="rounded bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700">
+                    Sí, eliminar
+                  </button>
+                </>
+              ) : (
+                <button type="button" onClick={() => setConfirmandoEliminar(true)} className="rounded px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50">
+                  Eliminar tarea
+                </button>
+              )}
+            </div>
       </div>
     </div>
   );

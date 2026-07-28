@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
-import { ChevronDown, Building2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { ChevronDown, Building2, Search } from "lucide-react";
 import Calendario from "./components/calendario/Calendario";
 import TableroKanban from "./components/kanban/TableroKanban";
 import HistorialMovimientos from "./components/historial/HistorialMovimiento";
 import { supabase } from "./lib/supabaseClient";
-import { COLUMNAS, REGEX_FECHA, esFinDeSemana, NAV_ITEMS, TODAS_EMPRESAS, compararTareas } from "./lib/tareasUtils";
+import { COLUMNAS, REGEX_FECHA, esFinDeSemana, NAV_ITEMS, TODAS_EMPRESAS, compararTareas, normalizarTexto } from "./lib/tareasUtils";
 
 
 export default function App() {
@@ -18,6 +18,7 @@ export default function App() {
   const [tareas, setTareas] = useState([]);
   const [cargandoTareas, setCargandoTareas] = useState(true);
   const [errorTareas, setErrorTareas] = useState(null);
+  const [busqueda, setBusqueda] = useState("");
 
   useEffect(() => {
     let activo = true;
@@ -104,26 +105,15 @@ export default function App() {
     }
   };
 
-  // const actualizarFechaTarea = async (idTarea, nuevaFecha) => {
-  //   const tareaAnterior = tareas.find((t) => String(t.id) === String(idTarea));
-  //   if (!tareaAnterior) return;
-
-  //   setTareas((prev) =>
-  //     prev.map((t) => (String(t.id) === String(idTarea) ? { ...t, fecha_vencimiento: nuevaFecha } : t))
-  //   );
-
-  //   const { error } = await supabase
-  //     .from("tareas")
-  //     .update({ fecha_vencimiento: nuevaFecha })
-  //     .eq("id", tareaAnterior.id);
-
-  //   if (error) {
-  //     setErrorTareas(error.message);
-  //     setTareas((prev) => prev.map((t) => (String(t.id) === String(idTarea) ? tareaAnterior : t)));
-  //   }
-  // };
-
-  // Mueve una tarea a una posición puntual dentro del día `fechaDestino`.
+  const tareasFiltradas = useMemo(() => {
+    const termino = normalizarTexto(busqueda.trim());
+    if (!termino) return tareas;
+    return tareas.filter((t) => {
+      const titulo = normalizarTexto(t.titulo ?? "");
+      const descripcion = normalizarTexto(t.descripcion ?? "");
+      return titulo.includes(termino) || descripcion.includes(termino);
+    });
+  }, [tareas, busqueda]);
 // Sirve para dos casos: reordenar manualmente dentro del mismo día
 // (fechaDestino = la fecha que ya tenía), o mandarla a otro día. En ambos
 // casos reasigna "orden" a todas las tareas de ese día para que el orden
@@ -214,6 +204,39 @@ const moverTarea = async (idTarea, fechaDestino, indiceDestino) => {
     }
   };
 
+  const eliminarTarea = async (idTarea) => {
+    const tareaAnterior = tareas.find((t) => String(t.id) === String(idTarea));
+    if (!tareaAnterior) return;
+
+    setTareas((prev) => prev.filter((t) => String(t.id) !== String(idTarea)));
+
+    const { error } = await supabase.from("tareas").delete().eq("id", tareaAnterior.id);
+
+    if (error) {
+      setErrorTareas(error.message);
+      setTareas((prev) => [...prev, tareaAnterior]);
+    }
+  };
+
+  const actualizarDescripcionTarea = async (idTarea, nuevaDescripcion) => {
+    const tareaAnterior = tareas.find((t) => String(t.id) === String(idTarea));
+    if (!tareaAnterior) return;
+
+    setTareas((prev) =>
+      prev.map((t) => (String(t.id) === String(idTarea) ? { ...t, descripcion: nuevaDescripcion } : t))
+    );
+
+    const { error } = await supabase
+      .from("tareas")
+      .update({ descripcion: nuevaDescripcion })
+      .eq("id", tareaAnterior.id);
+
+    if (error) {
+      setErrorTareas(error.message);
+      setTareas((prev) => prev.map((t) => (String(t.id) === String(idTarea) ? tareaAnterior : t)));
+    }
+  };
+
   // Cambia la empresa de una tarea. Si la vista actual está filtrada por una
   // sola empresa y la tarea pasa a otra, deja de pertenecer a esta vista y se
   // saca de la lista local (el modal de detalle se cierra solo porque
@@ -267,7 +290,7 @@ const moverTarea = async (idTarea, fechaDestino, indiceDestino) => {
       titulo,
       descripcion,
       prioridad,
-      estado: "pendiente",
+      estado: "tarea",
       motivo_bloqueo: null,
       fecha_vencimiento,
     };
@@ -281,7 +304,7 @@ const moverTarea = async (idTarea, fechaDestino, indiceDestino) => {
         titulo,
         descripcion,
         prioridad,
-        estado: "pendiente",
+        estado: "tarea",
         fecha_vencimiento,
       })
       .select()
@@ -329,53 +352,64 @@ const moverTarea = async (idTarea, fechaDestino, indiceDestino) => {
             {vistaActiva}
           </h1>
 
-          <div className="relative">
-            <button
-              onClick={() => setMenuAbierto((v) => !v)}
-              disabled={cargandoEmpresas || empresas.length === 0}
-              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Building2 className="h-4 w-4 text-gray-500" />
-              {cargandoEmpresas
-                ? "Cargando..."
-                : empresaActivaId === TODAS_EMPRESAS
-                  ? "Todas las empresas"
-                  : empresaActiva?.nombre ?? "Sin empresas"}
-              <ChevronDown className="h-4 w-4 text-gray-400" />
-            </button>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar tareas..."
+                className="w-56 rounded-lg border border-gray-200 bg-white py-2 pl-8 pr-3 text-sm text-gray-700 placeholder:text-gray-400 focus:border-indigo-300 focus:outline-none"
+              />
+            </div>
 
-            {menuAbierto && (
-              <div className="absolute right-0 z-10 mt-2 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-                <button
-                  onClick={() => {
-                    setEmpresaActivaId(TODAS_EMPRESAS);
-                    setMenuAbierto(false);
-                  }}
-                  className={`block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 ${
-                    empresaActivaId === TODAS_EMPRESAS ? "font-medium text-indigo-700" : "text-gray-700"
-                  }`}
-                >
-                  Todas las empresas
-                </button>
-                <div className="my-1 border-t border-gray-100" />
-                {empresas.map((empresa) => (
+            <div className="relative">
+              <button
+                onClick={() => setMenuAbierto((v) => !v)}
+                disabled={cargandoEmpresas || empresas.length === 0}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Building2 className="h-4 w-4 text-gray-500" />
+                {cargandoEmpresas
+                  ? "Cargando..."
+                  : empresaActivaId === TODAS_EMPRESAS
+                    ? "Todas las empresas"
+                    : empresaActiva?.nombre ?? "Sin empresas"}
+                <ChevronDown className="h-4 w-4 text-gray-400" />
+              </button>
+
+              {menuAbierto && (
+                <div className="absolute right-0 z-10 mt-2 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
                   <button
-                    key={empresa.id}
                     onClick={() => {
-                      setEmpresaActivaId(empresa.id);
+                      setEmpresaActivaId(TODAS_EMPRESAS);
                       setMenuAbierto(false);
                     }}
                     className={`block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 ${
-                      empresa.id === empresaActivaId
-                        ? "font-medium text-indigo-700"
-                        : "text-gray-700"
+                      empresaActivaId === TODAS_EMPRESAS ? "font-medium text-indigo-700" : "text-gray-700"
                     }`}
                   >
-                    {empresa.nombre}
+                    Todas las empresas
                   </button>
-                ))}
-              </div>
-            )}
+                  <div className="my-1 border-t border-gray-100" />
+                  {empresas.map((empresa) => (
+                    <button
+                      key={empresa.id}
+                      onClick={() => {
+                        setEmpresaActivaId(empresa.id);
+                        setMenuAbierto(false);
+                      }}
+                      className={`block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                        empresa.id === empresaActivaId ? "font-medium text-indigo-700" : "text-gray-700"
+                      }`}
+                    >
+                      {empresa.nombre}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -404,7 +438,7 @@ const moverTarea = async (idTarea, fechaDestino, indiceDestino) => {
               <>
                 {vistaActiva === "calendario" && (
                   <Calendario
-                    tareas={tareas}
+                    tareas={tareasFiltradas}
                     onDragEnd={handleDragEnd}
                     onCambiarEstado={actualizarEstadoTarea}
                     onActualizarMotivo={actualizarMotivoLocal}
@@ -417,11 +451,13 @@ const moverTarea = async (idTarea, fechaDestino, indiceDestino) => {
                     vistaCombinada={empresaActivaId === TODAS_EMPRESAS}
                     onActualizarTitulo={actualizarTituloTarea}
                     onActualizarEmpresa={actualizarEmpresaTarea}
+                    onActualizarDescripcion={actualizarDescripcionTarea}
+                    onEliminarTarea={eliminarTarea}
                   />
                 )}
                 {vistaActiva === "tablero" && (
                   <TableroKanban
-                    tareas={tareas}
+                    tareas={tareasFiltradas}
                     onDragEnd={handleDragEnd}
                     onActualizarMotivo={actualizarMotivoLocal}
                     onGuardarMotivo={guardarMotivo}

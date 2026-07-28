@@ -29,6 +29,8 @@ export default function Calendario({
   vistaCombinada = false,
   onActualizarTitulo,
   onActualizarEmpresa,
+  onActualizarDescripcion,
+  onEliminarTarea,
 }) {
   const [fechaRef, setFechaRef] = useState(() => new Date());
   const [vista, setVista] = useState("semana");
@@ -240,6 +242,8 @@ export default function Calendario({
           onGuardarMotivo={onGuardarMotivo}
           onActualizarTitulo={onActualizarTitulo}
           onActualizarEmpresa={onActualizarEmpresa}
+          onActualizarDescripcion={onActualizarDescripcion}
+          onEliminarTarea={onEliminarTarea}
           empresas={empresas}
         />
       )}
