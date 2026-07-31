@@ -110,7 +110,7 @@ export function CeldaCalendario({
               const colorEmpresa = mostrarEmpresa ? colorDeEmpresa(empresas, tarea.empresa_id) : null;
 
               const partesTooltip = [tarea.titulo];
-              if (tarea.descripcion?.trim()) partesTooltip.push(tarea.descripcion.trim());
+              if (tarea.motivo_bloqueo?.trim()) partesTooltip.push(tarea.motivo_bloqueo.trim());
               if (mostrarEmpresa) {
                 const nombreEmpresa = empresas.find((e) => e.id === tarea.empresa_id)?.nombre;
                 if (nombreEmpresa) partesTooltip.push(nombreEmpresa);
