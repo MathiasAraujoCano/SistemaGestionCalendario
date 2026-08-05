@@ -1,13 +1,28 @@
 import { useState, useEffect, useMemo } from "react";
-import { ChevronDown, Building2, Search } from "lucide-react";
+import { ChevronDown, Building2, Search, LogOut } from "lucide-react";
 import Calendario from "./components/calendario/Calendario";
 import TableroKanban from "./components/kanban/TableroKanban";
 import HistorialMovimientos from "./components/historial/HistorialMovimiento";
+import LoginSimple from "./components/auth/LoginSimple";
 import { supabase } from "./lib/supabaseClient";
 import { COLUMNAS, REGEX_FECHA, esFinDeSemana, NAV_ITEMS, TODAS_EMPRESAS, compararTareas, normalizarTexto } from "./lib/tareasUtils";
 
 
 export default function App() {
+  // undefined = todavía no sabemos si hay sesión (evita el flash del login).
+  // null = no hay sesión. objeto = logueado.
+  const [session, setSession] = useState(undefined);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nuevaSesion) => {
+      setSession(nuevaSesion);
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
   const [vistaActiva, setVistaActiva] = useState("calendario");
   const [empresas, setEmpresas] = useState([]);
   const [empresaActivaId, setEmpresaActivaId] = useState(TODAS_EMPRESAS);
@@ -21,6 +36,8 @@ export default function App() {
   const [busqueda, setBusqueda] = useState("");
 
   useEffect(() => {
+    if (!session) return;
+
     let activo = true;
 
     async function cargarEmpresas() {
@@ -45,10 +62,10 @@ export default function App() {
     return () => {
       activo = false;
     };
-  }, []);
+  }, [session]);
 
   useEffect(() => {
-    if (!empresaActivaId) return;
+    if (!session || !empresaActivaId) return;
 
     let activo = true;
 
@@ -78,7 +95,7 @@ export default function App() {
     return () => {
       activo = false;
     };
-  }, [empresaActivaId]);
+  }, [session, empresaActivaId]);
 
   const empresaActiva = empresas.find((e) => e.id === empresaActivaId);
 
@@ -306,6 +323,7 @@ const moverTarea = async (idTarea, fechaDestino, indiceDestino) => {
         prioridad,
         estado: "tarea",
         fecha_vencimiento,
+        creado_por: session.user.id, // la policy RLS exige que coincida con auth.uid()
       })
       .select()
       .single();
@@ -321,6 +339,14 @@ const moverTarea = async (idTarea, fechaDestino, indiceDestino) => {
     }
     return { data };
   };
+
+  if (session === undefined) {
+    return <div className="flex h-screen w-full items-center justify-center text-sm text-gray-400">Cargando...</div>;
+  }
+
+  if (session === null) {
+    return <LoginSimple />;
+  }
 
   return (
     <div className="flex h-screen w-full bg-gray-50 text-gray-800">
@@ -409,6 +435,23 @@ const moverTarea = async (idTarea, fechaDestino, indiceDestino) => {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="flex items-center gap-2 border-l border-gray-200 pl-3">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+                {session.user.email?.[0]?.toUpperCase()}
+              </div>
+              <span className="text-sm text-gray-600">
+                Hola, <span className="font-medium text-gray-800">{session.user.email}</span>
+              </span>
+
+              <button
+                onClick={() => supabase.auth.signOut()}
+                title="Cerrar sesión"
+                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
           </div>
         </header>

@@ -1,0 +1,6 @@
+project_id = "gestion-frontend"
+
+# login-simple se llama ANTES de que el usuario tenga sesión, así que no
+# puede exigir un JWT de usuario válido para aceptar la request.
+[functions.login-simple]
+verify_jwt = false
